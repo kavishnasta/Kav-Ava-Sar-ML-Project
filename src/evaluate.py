@@ -63,6 +63,9 @@ def run_evaluation():
 
     models = [("svm", svm), ("rf", rf)]
 
+    total_conditions = 2 + len(config.CORRUPTION_TYPES) * len(config.SEVERITIES)  # train_clean + baseline + grid
+    done_conditions = 0
+
     # --- Train-set clean performance (train/test gap) ---
     X_train_scaled = scaler.transform(X_train)
     for model_name, model in models:
@@ -71,7 +74,9 @@ def run_evaluation():
             model=model_name, condition="train_clean", corruption="none",
             severity=0, accuracy=acc, macro_f1=f1, n_samples=len(y_train), split="train",
         ))
-        print(f"[evaluate] TRAIN clean | {model_name}: acc={acc:.4f} f1={f1:.4f}")
+        print(f"[evaluate] TRAIN clean | {model_name}: acc={acc:.4f} f1={f1:.4f}", flush=True)
+    done_conditions += 1
+    print(f"[evaluate] progress: {done_conditions}/{total_conditions} conditions", flush=True)
 
     # --- Baseline (clean test) ---
     X_test_scaled = scaler.transform(X_test_clean)
@@ -82,7 +87,9 @@ def run_evaluation():
             severity=0, accuracy=acc, macro_f1=f1, n_samples=len(y_test), split="test",
         ))
         saved_preds[("baseline", model_name)] = (y_test, y_pred)
-        print(f"[evaluate] BASELINE clean | {model_name}: acc={acc:.4f} f1={f1:.4f}")
+        print(f"[evaluate] BASELINE clean | {model_name}: acc={acc:.4f} f1={f1:.4f}", flush=True)
+    done_conditions += 1
+    print(f"[evaluate] progress: {done_conditions}/{total_conditions} conditions", flush=True)
 
     # --- Full 70-condition grid ---
     for corruption in config.CORRUPTION_TYPES:
@@ -101,7 +108,10 @@ def run_evaluation():
                 if severity == 5 and corruption in WORST_CASE_CORRUPTIONS_FOR_CM:
                     saved_preds[(condition, model_name)] = (y_test, y_pred)
 
-            print(f"[evaluate] {condition} | svm/rf done")
+            done_conditions += 1
+            print(f"[evaluate] {condition} | svm/rf done "
+                  f"({done_conditions}/{total_conditions}, "
+                  f"{100*done_conditions/total_conditions:.0f}%)", flush=True)
 
     df = pd.DataFrame(rows)
     results_path = os.path.join(config.RESULTS_DIR, "results.csv")

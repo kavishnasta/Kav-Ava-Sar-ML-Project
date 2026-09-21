@@ -52,6 +52,12 @@ python src/plots.py              # 5. generate all PDF plots into plots/
 python src/run_pipeline.py
 ```
 
+If you're redirecting output to a log file (`python src/evaluate.py > log.txt`) or
+running in the background, add `-u` (`python -u src/evaluate.py > log.txt`) so
+progress prints flush immediately instead of buffering in ~4-8KB chunks —
+otherwise the log can look frozen for long stretches even while the process
+is actively working.
+
 ## Structure
 
 | File | Purpose |

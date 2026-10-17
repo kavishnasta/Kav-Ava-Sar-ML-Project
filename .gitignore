@@ -28,3 +28,15 @@ Thumbs.db
 
 # Local Claude Code session state (not project code)
 .claude/
+models/*.pt
+
+# Result tables (CSV) are kept locally but not tracked
+results/**/*.csv
+results/*.csv
+
+# Intermediate/working files
+*.joblib
+*.npy
+*.npz
+*.log
+results/*.txt

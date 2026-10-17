@@ -1,10 +1,11 @@
 numpy
+scipy
 pandas
 scikit-learn
 scikit-image
 opencv-python
-imagecorruptions
 matplotlib
 joblib
 tqdm
-requests
+pillow
+pytest

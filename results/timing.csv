@@ -1,7 +1,0 @@
-phase,item,seconds,timestamp
-benchmark,feature_extraction_per_1000_parallel,0.164,2026-10-17 14:52:04
-benchmark,feature_extraction_per_1000_single_core,1.481,2026-10-17 14:52:04
-benchmark,svc_fit_n6000,10.818,2026-10-17 14:52:29
-benchmark,svc_predict_per_1000_n6000,4.392,2026-10-17 14:52:29
-benchmark,svc_fit_n26640,121.089,2026-10-17 14:54:52
-benchmark,svc_predict_per_1000_n26640,10.640,2026-10-17 14:54:52

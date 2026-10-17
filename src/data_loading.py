@@ -1,16 +1,21 @@
 import os
-import sys
 import csv
 import zipfile
-import random
 
 import numpy as np
 import cv2
 import requests
 from tqdm import tqdm
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import config
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RAW_DIR = os.path.join(ROOT, "data", "raw_btsd")
+CACHE_DIR = os.path.join(ROOT, "data", "cache_btsd")
+os.makedirs(RAW_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+TRAIN_URL = "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Training.zip"
+TEST_URL = "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Testing.zip"
+IMG_SIZE = 32
 
 
 def download(url, path):
@@ -38,90 +43,52 @@ def extract(zip_path, out_dir):
     open(marker, "w").close()
 
 
-def get_raw_data():
-    train_zip = os.path.join(config.RAW_DIR, "train.zip")
-    test_zip = os.path.join(config.RAW_DIR, "test.zip")
-    gt_zip = os.path.join(config.RAW_DIR, "test_gt.zip")
-
-    download(config.TRAIN_URL, train_zip)
-    download(config.TEST_IMG_URL, test_zip)
-    download(config.TEST_GT_URL, gt_zip)
-
-    extract(train_zip, os.path.join(config.RAW_DIR, "train"))
-    extract(test_zip, os.path.join(config.RAW_DIR, "test"))
-    extract(gt_zip, os.path.join(config.RAW_DIR, "test_gt"))
-
-
-def find_train_root():
-    base = os.path.join(config.RAW_DIR, "train")
+def find_class_root(base):
     for root, dirs, _ in os.walk(base):
         if any(d.isdigit() and len(d) == 5 for d in dirs):
             return root
-    raise FileNotFoundError("train classes not found")
+    raise FileNotFoundError("class dirs not found")
 
 
-def load_train():
-    root = find_train_root()
+def load_split(base, desc):
+    root = find_class_root(base)
     classes = sorted(d for d in os.listdir(root) if d.isdigit() and len(d) == 5)
-    rng = random.Random(config.SEED)
     images, labels = [], []
 
-    for c in tqdm(classes, desc="train"):
+    for c in tqdm(classes, desc=desc):
         class_id = int(c)
         class_dir = os.path.join(root, c)
         gt_file = os.path.join(class_dir, f"GT-{c}.csv")
-        with open(gt_file, newline="") as f:
-            rows = [row["Filename"] for row in csv.DictReader(f, delimiter=";")]
-        if len(rows) > config.MAX_TRAIN_PER_CLASS:
-            rows = rng.sample(rows, config.MAX_TRAIN_PER_CLASS)
-        for name in rows:
+        if os.path.exists(gt_file):
+            with open(gt_file, newline="") as f:
+                names = [row["Filename"] for row in csv.DictReader(f, delimiter=";")]
+        else:
+            names = [f for f in sorted(os.listdir(class_dir)) if f.lower().endswith((".ppm", ".png", ".jpg"))]
+        for name in names:
             img = cv2.imread(os.path.join(class_dir, name), cv2.IMREAD_COLOR)
             if img is None:
                 continue
-            img = cv2.resize(img, (config.IMG_SIZE, config.IMG_SIZE))
+            img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
             images.append(img)
             labels.append(class_id)
 
     return np.stack(images).astype(np.uint8), np.array(labels, dtype=np.int64)
 
 
-def load_test():
-    img_dir = None
-    for root, _, files in os.walk(os.path.join(config.RAW_DIR, "test")):
-        if any(f.lower().endswith(".ppm") for f in files):
-            img_dir = root
-            break
-
-    gt_file = None
-    for root, _, files in os.walk(os.path.join(config.RAW_DIR, "test_gt")):
-        for f in files:
-            if f.lower().endswith(".csv"):
-                gt_file = os.path.join(root, f)
-        if gt_file:
-            break
-
-    images, labels = [], []
-    with open(gt_file, newline="") as f:
-        rows = list(csv.DictReader(f, delimiter=";"))
-    for row in tqdm(rows, desc="test"):
-        img = cv2.imread(os.path.join(img_dir, row["Filename"]), cv2.IMREAD_COLOR)
-        if img is None:
-            continue
-        img = cv2.resize(img, (config.IMG_SIZE, config.IMG_SIZE))
-        images.append(img)
-        labels.append(int(row["ClassId"]))
-
-    return np.stack(images).astype(np.uint8), np.array(labels, dtype=np.int64)
-
-
 def load_or_build():
-    paths = {k: os.path.join(config.CACHE_DIR, f"{k}.npy") for k in ["X_train", "y_train", "X_test", "y_test"]}
+    paths = {k: os.path.join(CACHE_DIR, f"{k}.npy") for k in ["X_train", "y_train", "X_test", "y_test"]}
     if all(os.path.exists(p) for p in paths.values()):
         return tuple(np.load(paths[k]) for k in ["X_train", "y_train", "X_test", "y_test"])
 
-    get_raw_data()
-    X_train, y_train = load_train()
-    X_test, y_test = load_test()
+    train_zip = os.path.join(RAW_DIR, "train.zip")
+    test_zip = os.path.join(RAW_DIR, "test.zip")
+    download(TRAIN_URL, train_zip)
+    download(TEST_URL, test_zip)
+    extract(train_zip, os.path.join(RAW_DIR, "train"))
+    extract(test_zip, os.path.join(RAW_DIR, "test"))
+
+    X_train, y_train = load_split(os.path.join(RAW_DIR, "train"), "train")
+    X_test, y_test = load_split(os.path.join(RAW_DIR, "test"), "test")
 
     for k, arr in zip(["X_train", "y_train", "X_test", "y_test"], [X_train, y_train, X_test, y_test]):
         np.save(paths[k], arr)

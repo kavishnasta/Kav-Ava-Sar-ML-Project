@@ -15,13 +15,12 @@ IMG_SIZE = 32
 SEED = 42
 N_JOBS = max(1, (os.cpu_count() or 2) - 1)
 
-# --- model/feature config (final values written after Phase 2, see results/improvement_log.csv) ---
-CROP = "roi"                 # "roi" | "full"
+# BEGIN AUTO (written by src/improve.py from the validation-only search)
+CROP = 'roi'
 MAX_TRAIN_PER_CLASS = 400    # None = all
-FEATURE_CFG = dict(median=True, clahe=False, size=32,
-                   hog_orient=9, hog_cells=(8,), hsv_bins=16, hsv_grid=1, hsv_ch="hsv", hu=True)
-SVM_PARAMS = dict(kernel="rbf", C=10, gamma="scale", random_state=SEED)
-RF_PARAMS = dict(n_estimators=200, random_state=SEED)
+FEATURE_CFG = {'median': True, 'clahe': True, 'size': 32, 'hog_orient': 9, 'hog_cells': (4,), 'hsv_bins': 16, 'hsv_grid': 1, 'hsv_ch': 'hsv', 'hu': True}
+SVM_PARAMS = dict(kernel="rbf", C=10, gamma_mult=1, random_state=SEED)   # gamma = gamma_mult / (n_features * var)
+# END AUTO
 
 # one colour per model, used by every figure
-MODEL_COLORS = {"SVM": "#1f77b4", "RF": "#2ca02c", "CNN": "#d62728"}
+MODEL_COLORS = {"SVM": "#1f77b4"}

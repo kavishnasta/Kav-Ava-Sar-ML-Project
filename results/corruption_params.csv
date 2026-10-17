@@ -1,0 +1,71 @@
+corruption,family,severity,value,parameter
+gaussian_noise,noise,1,0.04,"sigma of additive N(0,sigma) on [0,1] pixels"
+gaussian_noise,noise,2,0.08,"sigma of additive N(0,sigma) on [0,1] pixels"
+gaussian_noise,noise,3,0.12,"sigma of additive N(0,sigma) on [0,1] pixels"
+gaussian_noise,noise,4,0.18,"sigma of additive N(0,sigma) on [0,1] pixels"
+gaussian_noise,noise,5,0.26,"sigma of additive N(0,sigma) on [0,1] pixels"
+shot_noise,noise,1,300,Poisson lambda (photons per unit intensity; smaller = noisier)
+shot_noise,noise,2,120,Poisson lambda (photons per unit intensity; smaller = noisier)
+shot_noise,noise,3,50,Poisson lambda (photons per unit intensity; smaller = noisier)
+shot_noise,noise,4,20,Poisson lambda (photons per unit intensity; smaller = noisier)
+shot_noise,noise,5,8,Poisson lambda (photons per unit intensity; smaller = noisier)
+impulse_noise,noise,1,0.02,fraction of salt-and-pepper pixel values
+impulse_noise,noise,2,0.05,fraction of salt-and-pepper pixel values
+impulse_noise,noise,3,0.09,fraction of salt-and-pepper pixel values
+impulse_noise,noise,4,0.14,fraction of salt-and-pepper pixel values
+impulse_noise,noise,5,0.2,fraction of salt-and-pepper pixel values
+defocus_blur,blur,1,0.8,disk kernel radius in px
+defocus_blur,blur,2,1.1,disk kernel radius in px
+defocus_blur,blur,3,1.5,disk kernel radius in px
+defocus_blur,blur,4,2.0,disk kernel radius in px
+defocus_blur,blur,5,2.5,disk kernel radius in px
+motion_blur,blur,1,3,line kernel length in px (random angle)
+motion_blur,blur,2,4,line kernel length in px (random angle)
+motion_blur,blur,3,5,line kernel length in px (random angle)
+motion_blur,blur,4,7,line kernel length in px (random angle)
+motion_blur,blur,5,9,line kernel length in px (random angle)
+zoom_blur,blur,1,1.08,max centre zoom factor averaged over 8 zoom steps
+zoom_blur,blur,2,1.16,max centre zoom factor averaged over 8 zoom steps
+zoom_blur,blur,3,1.26,max centre zoom factor averaged over 8 zoom steps
+zoom_blur,blur,4,1.38,max centre zoom factor averaged over 8 zoom steps
+zoom_blur,blur,5,1.52,max centre zoom factor averaged over 8 zoom steps
+snow,weather,1,0.02,fraction of pixels that start a flake
+snow,weather,2,0.04,fraction of pixels that start a flake
+snow,weather,3,0.06,fraction of pixels that start a flake
+snow,weather,4,0.09,fraction of pixels that start a flake
+snow,weather,5,0.12,fraction of pixels that start a flake
+frost,weather,1,0.2,blend weight of the procedural frost texture
+frost,weather,2,0.3,blend weight of the procedural frost texture
+frost,weather,3,0.4,blend weight of the procedural frost texture
+frost,weather,4,0.5,blend weight of the procedural frost texture
+frost,weather,5,0.6,blend weight of the procedural frost texture
+fog,weather,1,0.3,fog intensity (plasma-fractal haze opacity scale)
+fog,weather,2,0.45,fog intensity (plasma-fractal haze opacity scale)
+fog,weather,3,0.6,fog intensity (plasma-fractal haze opacity scale)
+fog,weather,4,0.75,fog intensity (plasma-fractal haze opacity scale)
+fog,weather,5,0.9,fog intensity (plasma-fractal haze opacity scale)
+brightness,digital,1,0.1,constant added to HSV value channel
+brightness,digital,2,0.2,constant added to HSV value channel
+brightness,digital,3,0.3,constant added to HSV value channel
+brightness,digital,4,0.4,constant added to HSV value channel
+brightness,digital,5,0.5,constant added to HSV value channel
+contrast,digital,1,0.8,scale of the deviation from the per-channel mean
+contrast,digital,2,0.6,scale of the deviation from the per-channel mean
+contrast,digital,3,0.45,scale of the deviation from the per-channel mean
+contrast,digital,4,0.3,scale of the deviation from the per-channel mean
+contrast,digital,5,0.2,scale of the deviation from the per-channel mean
+pixelate,digital,1,0.8,"downscale factor (box filter) then nearest upscale; 0.5 and 0.75 avoided: sizes of exactly 16 and 24 px have a dip in error, which breaks monotonicity"
+pixelate,digital,2,0.65,"downscale factor (box filter) then nearest upscale; 0.5 and 0.75 avoided: sizes of exactly 16 and 24 px have a dip in error, which breaks monotonicity"
+pixelate,digital,3,0.55,"downscale factor (box filter) then nearest upscale; 0.5 and 0.75 avoided: sizes of exactly 16 and 24 px have a dip in error, which breaks monotonicity"
+pixelate,digital,4,0.4,"downscale factor (box filter) then nearest upscale; 0.5 and 0.75 avoided: sizes of exactly 16 and 24 px have a dip in error, which breaks monotonicity"
+pixelate,digital,5,0.3,"downscale factor (box filter) then nearest upscale; 0.5 and 0.75 avoided: sizes of exactly 16 and 24 px have a dip in error, which breaks monotonicity"
+elastic_transform,digital,1,0.8,max displacement in px of the smoothed random field
+elastic_transform,digital,2,1.2,max displacement in px of the smoothed random field
+elastic_transform,digital,3,1.7,max displacement in px of the smoothed random field
+elastic_transform,digital,4,2.2,max displacement in px of the smoothed random field
+elastic_transform,digital,5,2.8,max displacement in px of the smoothed random field
+jpeg_compression,digital,1,50,JPEG quality
+jpeg_compression,digital,2,30,JPEG quality
+jpeg_compression,digital,3,18,JPEG quality
+jpeg_compression,digital,4,10,JPEG quality
+jpeg_compression,digital,5,5,JPEG quality

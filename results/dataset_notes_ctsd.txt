@@ -1,0 +1,6 @@
+CTSD (Kaggle 'Chinese Traffic Signs'): cropped to box, split 80/20 by source image within each class (seed 42).
+Files '*_j.png' are jittered variants of '*.png'; they share a group so a sign never appears in both train and test.
+CSV rows dropped because the box belongs to a different image than the one on disk (size mismatch): 166
+rows: 5998, images: 5998, groups: 5115, test rows: 1204
+classes with a single group (train only, excluded from macro-F1): none
+classes present in test: 58 of 58

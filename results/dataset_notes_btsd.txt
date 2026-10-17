@@ -1,0 +1,5 @@
+BTSD (BelgiumTSC): official train+test pooled, split 80/20 by track (group = class + track id) within each class, seed 42.
+pooled images: 7125, tracks: 2387, test images: 1425
+classes with a single track (train only, excluded from macro-F1): none
+classes absent from the test split: none
+classes present in test: 62 of 62

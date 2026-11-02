@@ -1,8 +1,3 @@
-"""Unified loader for GTSRB, BTSD (BelgiumTSC) and CTSD (Chinese Traffic Signs, Kaggle version).
-
-load(name) -> X_train, y_train, groups_train, X_test, y_test, n_classes
-Images are uint8 BGR, IMG_SIZE x IMG_SIZE, cached under data/cache/<dataset>/.
-"""
 import argparse
 import csv
 import glob
@@ -27,10 +22,12 @@ CTSD_HELP = """CTSD data not found. Manual download:
   3. Re-run this script. CTSD is skipped until then."""
 
 
+# Resize to a square, using area interpolation when shrinking
 def _resize(img, s):
     return cv2.resize(img, (s, s), interpolation=cv2.INTER_AREA if max(img.shape[:2]) > s else cv2.INTER_LINEAR)
 
 
+# Read one image and return its cropped sign and the full frame, both resized
 def _read(args):
     path, roi = args
     img = cv2.imread(path, cv2.IMREAD_COLOR)
@@ -46,21 +43,21 @@ def _read(args):
     return crop, full
 
 
+# Read all images using several threads
 def _read_all(records, desc):
-    """records: list of (path, (x1,y1,x2,y2)) -> X_roi, X_full uint8 arrays."""
     with ThreadPoolExecutor(config.N_JOBS) as ex:
         out = list(tqdm(ex.map(_read, records), total=len(records), desc=desc))
     return np.stack([o[0] for o in out]), np.stack([o[1] for o in out])
 
 
+# Turn group keys into integer ids
 def _factorize(keys):
     ids = {}
     return np.array([ids.setdefault(k, len(ids)) for k in keys], dtype=np.int64)
 
 
+# Hold out about frac of the groups of each class, keeping whole groups together
 def group_split(y, groups, frac, seed):
-    """Boolean mask of samples held out. Per class ~frac of the groups (>=1 if the class has >=2 groups)
-    are held out as whole groups; classes with a single group are never held out."""
     rng = np.random.RandomState(seed)
     held = np.zeros(len(y), bool)
     for c in np.unique(y):
@@ -73,14 +70,13 @@ def group_split(y, groups, frac, seed):
     return held
 
 
+# Split the training set into train and validation indices for tuning
 def val_split(y_train, groups_train):
-    """(train_idx, val_idx) on the training set for tuning. Whole tracks are held out per class."""
     held = group_split(y_train, groups_train, 0.2, config.SEED)
     return np.where(~held)[0], np.where(held)[0]
 
 
-# ---------------------------------------------------------------- per-dataset record builders
-# record = (path, class, (x1,y1,x2,y2), group_key or None)
+# Yield (path, class, box, filename) for every row of a GTSRB style csv
 def _gt_rows(csv_path, folder):
     with open(csv_path, newline="") as f:
         for r in csv.DictReader(f, delimiter=";"):
@@ -88,24 +84,26 @@ def _gt_rows(csv_path, folder):
                    (int(r["Roi.X1"]), int(r["Roi.Y1"]), int(r["Roi.X2"]), int(r["Roi.Y2"])), r["Filename"])
 
 
+# List the official GTSRB train and test records
 def _build_gtsrb():
     base = RAW["gtsrb"]
     tr = []
     for gt in sorted(glob.glob(os.path.join(base, "train_extracted", "**", "GT-*.csv"), recursive=True)):
         for p, c, roi, fn in _gt_rows(gt, os.path.dirname(gt)):
-            tr.append((p, c, roi, (c, fn.split("_")[0])))      # group = (class, track id)
+            tr.append((p, c, roi, (c, fn.split("_")[0])))
     gt_test = os.path.join(base, "test_gt_extracted", "GT-final_test.csv")
     img_dir = os.path.dirname(glob.glob(os.path.join(base, "test_extracted", "**", "00000.ppm"), recursive=True)[0])
     te = [(p, c, roi, None) for p, c, roi, fn in _gt_rows(gt_test, img_dir)]
     return tr, te
 
 
+# Pool the BTSD train and test data and split it again by sign track
 def _build_btsd():
     recs = []
     for split in ("train_extracted", "test_extracted"):
         for gt in sorted(glob.glob(os.path.join(RAW["btsd"], split, "**", "GT-*.csv"), recursive=True)):
             for p, c, roi, fn in _gt_rows(gt, os.path.dirname(gt)):
-                recs.append((p, c, roi, (c, fn.split("_")[0])))   # track ids repeat across classes -> key on (class, track)
+                recs.append((p, c, roi, (c, fn.split("_")[0])))
     y = np.array([r[1] for r in recs])
     g = _factorize([r[3] for r in recs])
     held = group_split(y, g, 0.2, config.SEED)
@@ -121,12 +119,11 @@ def _build_btsd():
     return [r for r, h in zip(recs, held) if not h], [r for r, h in zip(recs, held) if h]
 
 
+# Read the CTSD annotations and split by source image so jittered copies stay together
 def _build_ctsd():
     import pandas as pd
     base = RAW["ctsd"]
     ann = pd.read_csv(os.path.join(base, "annotations.csv"))
-    # some file names occur twice in the CSV (two different source images, only one on disk): keep the row whose
-    # width/height match the image that exists, drop the other
     from PIL import Image
     sizes = {f: Image.open(os.path.join(base, "images", f)).size for f in ann.file_name.unique()}
     ok = np.array([sizes[r.file_name] == (r.width, r.height) for r in ann.itertuples()])
@@ -134,7 +131,6 @@ def _build_ctsd():
     ann = ann[ok]
     recs = []
     for r in ann.itertuples():
-        # "<cls>_<n>_j.png" is a jittered re-crop of "<cls>_<n>.png": same source -> same group (avoids leakage)
         key = (int(r.category), r.file_name.replace("_j.png", ".png"))
         recs.append((os.path.join(base, "images", r.file_name), int(r.category), (r.x1, r.y1, r.x2, r.y2), key))
     y = np.array([r[1] for r in recs])
@@ -152,18 +148,21 @@ def _build_ctsd():
     return [r for r, h in zip(recs, held) if not h], [r for r, h in zip(recs, held) if h]
 
 
+# Check whether the raw data of a dataset is on disk
 def _available(name):
     if name == "ctsd":
         return os.path.exists(os.path.join(RAW["ctsd"], "annotations.csv"))
     return os.path.isdir(RAW[name])
 
 
+# Cache folder of a dataset
 def _cache_dir(name):
     d = os.path.join(config.CACHE_DIR, name)
     os.makedirs(d, exist_ok=True)
     return d
 
 
+# Read all images of a dataset and save them as numpy files
 def build(name):
     tr, te = {"gtsrb": _build_gtsrb, "btsd": _build_btsd, "ctsd": _build_ctsd}[name]()
     d = _cache_dir(name)
@@ -176,6 +175,7 @@ def build(name):
             np.save(os.path.join(d, "g_train.npy"), _factorize([r[3] for r in recs]))
 
 
+# Load a dataset from the cache, building the cache first if needed
 def load(name, crop=None):
     crop = crop or config.CROP
     d = _cache_dir(name)
@@ -190,8 +190,8 @@ def load(name, crop=None):
     return a(f"X_train_{crop}.npy"), y_train, a("g_train.npy"), a(f"X_test_{crop}.npy"), a("y_test.npy"), N_CLASSES[name]
 
 
+# Turn the dataset argument into a list of datasets that are available
 def resolve(arg):
-    """--dataset value -> list of available dataset names (prints help and skips a dataset whose data is missing)."""
     names = config.DATASETS if arg == "all" else [arg]
     out = []
     for n in names:
@@ -203,6 +203,7 @@ def resolve(arg):
     return out
 
 
+# Add the dataset option to an argument parser
 def add_dataset_arg(p):
     p.add_argument("--dataset", default="all", choices=config.DATASETS + ["all"])
     return p

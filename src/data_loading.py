@@ -18,6 +18,7 @@ TEST_URL = "https://btsd.ethz.ch/shareddata/BelgiumTSC/BelgiumTSC_Testing.zip"
 IMG_SIZE = 32
 
 
+# Download a file with a progress bar unless it already exists
 def download(url, path):
     if os.path.exists(path):
         return
@@ -33,6 +34,7 @@ def download(url, path):
     os.replace(tmp, path)
 
 
+# Unzip an archive once and leave a marker file behind
 def extract(zip_path, out_dir):
     marker = out_dir + ".done"
     if os.path.exists(marker):
@@ -43,6 +45,7 @@ def extract(zip_path, out_dir):
     open(marker, "w").close()
 
 
+# Find the folder that holds the numbered class folders
 def find_class_root(base):
     for root, dirs, _ in os.walk(base):
         if any(d.isdigit() and len(d) == 5 for d in dirs):
@@ -50,6 +53,7 @@ def find_class_root(base):
     raise FileNotFoundError("class dirs not found")
 
 
+# Read every image of one split and return the images with their labels
 def load_split(base, desc):
     root = find_class_root(base)
     classes = sorted(d for d in os.listdir(root) if d.isdigit() and len(d) == 5)
@@ -75,6 +79,7 @@ def load_split(base, desc):
     return np.stack(images).astype(np.uint8), np.array(labels, dtype=np.int64)
 
 
+# Load the cached arrays or download, unzip and build them first
 def load_or_build():
     paths = {k: os.path.join(CACHE_DIR, f"{k}.npy") for k in ["X_train", "y_train", "X_test", "y_test"]}
     if all(os.path.exists(p) for p in paths.values()):

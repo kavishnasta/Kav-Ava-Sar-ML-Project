@@ -1,13 +1,3 @@
-"""Phase 4: clean baseline + robustness grid (14 corruptions x 5 severities) for the SVM.
-
-For every (corruption, severity) the test images are corrupted once and features are extracted once.
-Severity 0 = clean (always the full test set). Outputs in results/:
-  baseline_<ds>.csv            train/test accuracy + macro-F1 (full sets; plus test_subset in fast mode)
-  grid_<ds>.csv                dataset,model,corruption,family,severity,accuracy,macro_f1,n_samples,mode  (resumable)
-  ablation_features_<ds>.csv   SVM on feature groups, clean + severities 3 and 5
-  ablation_preproc_<ds>.csv    GTSRB only: SVM with median blur / CLAHE flipped, clean + severities 1, 3, 5
-  preds_<ds>.npz               y_true / y_pred for clean and every corruption at severity 5
-"""
 import argparse
 import os
 
@@ -28,10 +18,12 @@ from timing import timed
 COLS = ["dataset", "model", "corruption", "family", "severity", "accuracy", "macro_f1", "n_samples", "mode"]
 
 
+# Path of a result file for a dataset
 def R(name, ds, ext="csv"):
     return os.path.join(config.RESULTS_DIR, f"{name}_{ds}.{ext}")
 
 
+# Pick up to n test images while keeping the class balance
 def stratified_subset(y, n, seed=config.SEED):
     if len(y) <= n:
         return np.arange(len(y))
@@ -43,8 +35,8 @@ def stratified_subset(y, n, seed=config.SEED):
     return np.sort(np.array(idx))
 
 
+# Reuse a saved model if it was trained with the same settings, otherwise train and save it
 def cached(path, sig, build):
-    """Reuse a trained model from disk if it was trained with the same settings."""
     if os.path.exists(path):
         obj, s = joblib.load(path)
         if s == sig:
@@ -54,15 +46,16 @@ def cached(path, sig, build):
     return obj
 
 
+# Train one SVM on the given feature columns
 def fit_svm(F, y, cols=None):
     return SVMModel(config.SVM_PARAMS, cols).fit(F, y)
 
 
+# Evaluate every model on every condition and save one row per result, skipping rows already saved
 def eval_loop(ds, mode, X_test, y_test, idx, entries, fcfgs, conditions, store=None, desc=""):
-    """entries: list of dict(name, model, key (feature cfg), sev (set or None), path (csv))."""
     seen = set()
     for p in {e["path"] for e in entries}:
-        if os.path.exists(p):                       # resume: keep only rows of this mode
+        if os.path.exists(p):
             df = pd.read_csv(p)
             df = df[df["mode"] == mode]
             df.to_csv(p, index=False)
@@ -92,6 +85,7 @@ def eval_loop(ds, mode, X_test, y_test, idx, entries, fcfgs, conditions, store=N
             np.savez_compressed(R("preds", ds, "npz"), **store)
 
 
+# Train the models for one dataset and run the full evaluation grid and the feature ablation
 def run_dataset(ds, mode, retrain, subset):
     print(f"\n===== {ds} ({mode} mode) =====")
     Xtr, ytr, gtr, Xte, yte, _ = datasets.load(ds)
@@ -142,8 +136,8 @@ def run_dataset(ds, mode, retrain, subset):
         preproc_ablation(ds, mode, Xtr, ytr, Xte, yte, idx, cap, fcfg)
 
 
+# Retrain with the median blur or CLAHE switched and compare the results
 def preproc_ablation(ds, mode, Xtr, ytr, Xte, yte, idx, cap, fcfg):
-    """SVM trained with the median blur / CLAHE setting flipped (everything else identical)."""
     tag = lambda c: f"SVM[median={'on' if c['median'] else 'off'},clahe={'on' if c['clahe'] else 'off'}]"
     variants = [fcfg, dict(fcfg, median=not fcfg["median"]), dict(fcfg, clahe=not fcfg["clahe"])]
     with timed(f"grid_{ds}", "preproc_ablation_train"):
@@ -155,6 +149,7 @@ def preproc_ablation(ds, mode, Xtr, ytr, Xte, yte, idx, cap, fcfg):
         eval_loop(ds, mode, Xte, yte, idx, entries, {tag(c): c for c in variants}, conditions, desc="preproc ablation")
 
 
+# Read the command line options and run every selected dataset
 def main():
     ap = datasets.add_dataset_arg(argparse.ArgumentParser())
     ap.add_argument("--mode", choices=["fast", "full"], default="fast")

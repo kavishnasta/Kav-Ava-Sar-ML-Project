@@ -11,12 +11,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS_DIR = os.path.join(ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
+# Load the images and turn them into features
 X_train, y_train, X_test, y_test = load_or_build()
 print("train", X_train.shape, "test", X_test.shape)
 
 X_train_feat = extract_batch(X_train)
 X_test_feat = extract_batch(X_test)
 
+# Scale the features and train the SVM
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train_feat)
 X_test_scaled = scaler.transform(X_test_feat)
@@ -24,6 +26,7 @@ X_test_scaled = scaler.transform(X_test_feat)
 svm = SVC(kernel="rbf", C=10, gamma="scale")
 svm.fit(X_train_scaled, y_train)
 
+# Score the model on the test set and save the result
 pred = svm.predict(X_test_scaled)
 acc = accuracy_score(y_test, pred)
 f1 = f1_score(y_test, pred, average="macro")

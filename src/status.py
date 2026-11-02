@@ -1,4 +1,3 @@
-"""Progress checkpoints: python src/status.py  (reads results/ only, safe to run while the pipeline runs)."""
 import os
 
 import pandas as pd
@@ -6,6 +5,8 @@ import pandas as pd
 import config
 
 NCOND = 71
+
+# Print how far each dataset has got, using only the saved result files
 print(f"{'dataset':8} {'train':>6} {'baseline':>9} {'grid':>10} {'feat-abl':>9} {'preproc-abl':>12} {'plots':>6}")
 for ds in config.DATASETS:
     R = lambda n: os.path.join(config.RESULTS_DIR, f"{n}_{ds}.csv")

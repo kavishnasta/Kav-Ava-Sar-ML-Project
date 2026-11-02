@@ -1,4 +1,3 @@
-"""Phase 0: time feature extraction, SVC fit and SVC predict. Writes results/timing.csv."""
 import os
 import time
 
@@ -13,11 +12,12 @@ import features
 from timing import log_time
 
 
+# Time feature extraction, SVM training and SVM prediction on GTSRB
 def main():
     print("cpu_count:", os.cpu_count(), "workers:", config.N_JOBS)
     X, y, g, Xte, yte, k = datasets.load("gtsrb")
     cfg = features.make_cfg()
-    features.extract_batch(X[:1200], cfg)              # warm up the worker pool
+    features.extract_batch(X[:1200], cfg)
     t = time.time(); F = features.extract_batch(X[:6000], cfg); t_par = (time.time() - t) / 6
     t = time.time(); features.extract_batch(X[:1000], cfg, n_jobs=1); t_ser = time.time() - t
     log_time("benchmark", "feature_extraction_per_1000_parallel", t_par)

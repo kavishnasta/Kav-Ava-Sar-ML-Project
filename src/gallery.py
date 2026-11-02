@@ -1,4 +1,3 @@
-"""Corruption gallery: rows = 14 corruptions, columns = clean + severity 1..5, one sample sign per dataset."""
 import argparse
 import os
 
@@ -12,9 +11,10 @@ import corruptions
 import datasets
 
 
+# Draw a grid showing every corruption at every severity on one sample sign
 def make_gallery(dataset, path=None, sample=None):
     _, _, _, X, y, _ = datasets.load(dataset)
-    if sample is None:                               # a sharp, reasonably large-contrast sample: highest Laplacian variance among a few
+    if sample is None:
         import cv2
         cand = np.random.RandomState(0).choice(len(X), 60, replace=False)
         sample = cand[int(np.argmax([cv2.Laplacian(cv2.cvtColor(X[i], cv2.COLOR_BGR2GRAY), cv2.CV_64F).var() for i in cand]))]

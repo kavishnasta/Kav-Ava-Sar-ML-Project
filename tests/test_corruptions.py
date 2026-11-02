@@ -6,11 +6,11 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
-import corruptions as C  # noqa: E402
+import corruptions as C
 
 
+# Make fake sign like 32x32 images so no dataset is needed
 def sample_images(n=8):
-    """Synthetic sign-like 32x32 BGR images (no dataset needed): coloured disc, white inner ring, dark glyph."""
     rng = np.random.RandomState(0)
     yy, xx = np.mgrid[:32, :32]
     out = []
@@ -20,7 +20,7 @@ def sample_images(n=8):
         img[r < 13] = (30, 30, 200 - 10 * i)
         img[r < 9] = (240, 240, 240)
         img[12:20, 10 + i % 4:22 - i % 3] = (20, 20, 20)
-        img = cv2.GaussianBlur(img, (0, 0), 0.8)                       # soft edges not aligned to any pixel grid
+        img = cv2.GaussianBlur(img, (0, 0), 0.8)
         tex = cv2.GaussianBlur(rng.randn(32, 32).astype(np.float32), (0, 0), 1.2) * 40
         out.append(np.clip(img + tex[..., None], 0, 255).astype(np.uint8))
     return out
@@ -29,6 +29,7 @@ def sample_images(n=8):
 IMGS = sample_images()
 
 
+# Output keeps the same shape and type as the input
 @pytest.mark.parametrize("name", C.NAMES)
 def test_shape_dtype_preserved(name):
     for s in range(1, 6):
@@ -36,6 +37,7 @@ def test_shape_dtype_preserved(name):
         assert out.shape == IMGS[0].shape and out.dtype == np.uint8
 
 
+# The same seed gives the same output
 @pytest.mark.parametrize("name", C.NAMES)
 def test_same_seed_same_output(name):
     a = C.FUNCS[name](IMGS[0], 3, np.random.default_rng(5))
@@ -43,6 +45,7 @@ def test_same_seed_same_output(name):
     assert np.array_equal(a, b)
 
 
+# The input image is never changed
 @pytest.mark.parametrize("name", C.NAMES)
 def test_input_not_modified(name):
     img = IMGS[1].copy()
@@ -52,22 +55,26 @@ def test_input_not_modified(name):
     assert np.array_equal(img, ref)
 
 
+# Average pixel change caused by a corruption at one severity
 def mean_diff(name, s):
     return np.mean([np.abs(C.FUNCS[name](im, s, np.random.default_rng(100 + i)).astype(float) - im).mean()
                     for i, im in enumerate(IMGS)])
 
 
+# A higher severity changes the image more
 @pytest.mark.parametrize("name", C.NAMES)
 def test_difference_increases_with_severity(name):
     d = [mean_diff(name, s) for s in range(1, 6)]
     assert all(b > a for a, b in zip(d, d[1:])), d
 
 
+# Even the mildest severity changes the image
 @pytest.mark.parametrize("name", C.NAMES)
 def test_severity1_changes_image(name):
     assert mean_diff(name, 1) > 0
 
 
+# Batch results repeat and do not depend on the number of processes
 def test_batch_deterministic_and_independent_of_jobs():
     X = np.stack(IMGS * 250)
     a = C.corrupt_batch(X, "gaussian_noise", 3, "t", n_jobs=1)

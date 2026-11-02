@@ -1,12 +1,3 @@
-"""Phase 2: improve the clean baseline using the VALIDATION split only (held-out tracks of the training set).
-
-Greedy and cumulative: a change is kept only if it adds >= 0.3 pt validation accuracy
-(removals: Hu moments are dropped when val accuracy falls by <= 0.3 pt).
-Every evaluated configuration is appended to results/improvement_log.csv. The test set is never loaded here.
-Tuning is done on GTSRB; the final config is then sanity-checked on the validation split of BTSD / CTSD.
-
-Timings in the log are measured with several worker processes running concurrently: compare them only relatively.
-"""
 import copy
 import json
 import os
@@ -25,10 +16,11 @@ import datasets
 import features
 
 LOG = os.path.join(config.RESULTS_DIR, "improvement_log.csv")
-GAIN = 0.3          # points of validation accuracy
+GAIN = 0.3
 MAX_DIM = 1500
 
 
+# Keep at most n random training images per class
 def cap_per_class(y, n, seed=config.SEED):
     if n is None:
         return np.arange(len(y))
@@ -43,8 +35,8 @@ def cap_per_class(y, n, seed=config.SEED):
     return np.sort(np.array(keep))
 
 
+# Train on the training part and score on the validation part for one setting
 def fit_eval(spec):
-    """spec: dataset, crop, per_class, fcfg, params, sub (optional train subsample). Validation only."""
     import cv2
     cv2.setNumThreads(0)
     Xtr, ytr, gtr, _, _, _ = datasets.load(spec["dataset"], spec["crop"])
@@ -73,6 +65,7 @@ def fit_eval(spec):
                 feature_dim=Ftr.shape[1], n_train=len(tr_i), n_val=len(va_i), fit_s=fit_s, predict_s_per_1000=pred_s)
 
 
+# Append the results of a step to the tuning log
 def log_rows(step, entries):
     rows = []
     for label, spec, res, adopted, note in entries:
@@ -83,16 +76,18 @@ def log_rows(step, entries):
     df.to_csv(LOG, mode="a", header=not os.path.exists(LOG), index=False)
 
 
+# Evaluate several settings at the same time
 def run_many(specs):
     return Parallel(n_jobs=min(len(specs), config.N_JOBS))(delayed(fit_eval)(s) for s in specs)
 
 
+# Short text summary of a result
 def short(res):
     return f"val_acc {res['val_accuracy']*100:.2f} f1 {res['val_macro_f1']*100:.2f} dim {res['feature_dim']} fit {res['fit_s']:.0f}s"
 
 
+# Try the candidate changes of one step and keep the ones that help enough
 def run_step(step, state, base_res, cands, prefer_smaller=False):
-    """cands: list of (label, {state_key: value} or {'fcfg': {...}}). Returns new state, new result."""
     specs = []
     for label, mod in cands:
         s = copy.deepcopy(state)
@@ -116,7 +111,6 @@ def run_step(step, state, base_res, cands, prefer_smaller=False):
     passed = sorted([s for s in scored if s[5]], key=lambda s: -s[0])
     new_state, new_res, adopted_labels = state, base_res, []
     if passed:
-        # combine passing changes (best gain first; a later change on an already-modified key is skipped)
         comb, used = copy.deepcopy(state), set()
         for gain, label, mod, spec, res, ok, note in passed:
             keys = set()
@@ -133,7 +127,6 @@ def run_step(step, state, base_res, cands, prefer_smaller=False):
             cres = run_many([comb])[0]
             print(f"  [{step}] combination {adopted_labels}: {short(cres)}")
             entries.append(("COMBINED " + "+".join(adopted_labels), comb, cres, "", "combination of passing changes"))
-            # a combination must itself beat the best single change by the same margin, otherwise it only adds cost
             if (cres["val_accuracy"] - best[4]["val_accuracy"]) * 100 >= GAIN:
                 new_state, new_res = comb, cres
             else:
@@ -147,8 +140,8 @@ def run_step(step, state, base_res, cands, prefer_smaller=False):
     return new_state, new_res
 
 
+# Rebuild the last adopted setting from the log so the search can continue
 def resume_state(letter):
-    """Keep the log rows of the steps before `letter`, and rebuild the state from the last adopted configuration."""
     df = pd.read_csv(LOG)
     df = df[df.step.str[0] < letter]
     df.to_csv(LOG, index=False)
@@ -158,6 +151,7 @@ def resume_state(letter):
     return dict(dataset="gtsrb", **spec)
 
 
+# Start the search from the baseline, or resume from a given step
 def main(resume=None):
     t0 = time.time()
     if resume:
@@ -181,6 +175,7 @@ def main(resume=None):
     run_from("a", state, base, t0)
 
 
+# Run the search steps one after another starting from the given letter
 def run_from(first, state, base, t0):
     go = lambda letter: letter >= first
     if go("a"):
@@ -203,7 +198,7 @@ def run_from(first, state, base, t0):
         state, base = run_step("g Hu moments", state, base, [("drop Hu", dict(fcfg=dict(hu=False)))], prefer_smaller=True)
     print("features frozen:", state["crop"], state["per_class"], state["fcfg"])
 
-    # ---- h. SVM C x gamma on a subsample, confirm the best three on the full training set
+    # Try C and gamma on a small sample first, then confirm the best three on the full training set
     grid = [(C, m) for C in (1, 3, 10, 30) for m in (0.3, 1, 3)]
     specs = [dict(state, params=dict(C=C, gamma_mult=m), sub=8000) for C, m in grid]
     res = run_many(specs)
@@ -221,7 +216,7 @@ def run_from(first, state, base, t0):
     print(f"[h] SVM best: C={bestC} gamma={bestM}*scale  {short(svm_res)}")
     state["params"] = dict(C=bestC, gamma_mult=bestM)
 
-    # ---- cross-dataset validation sanity check (baseline config vs final config)
+    # Check the tuned setting against the baseline on the validation data of the other datasets
     entries = []
     base_cfg = dict(dataset="gtsrb", crop="roi", per_class=400, params=dict(C=10, gamma="scale"), fcfg=features.make_cfg(
         median=True, clahe=False, size=32, hog_orient=9, hog_cells=(8,), hsv_bins=16, hsv_grid=1, hsv_ch="hsv", hu=True))
@@ -241,14 +236,15 @@ def run_from(first, state, base, t0):
     print(f"done in {(time.time() - t0) / 60:.1f} min")
 
 
+# Write the chosen settings into the marked block of config.py
 def write_config(state):
     p = dict(state["params"])
     fcfg = {k: (tuple(v) if isinstance(v, (list, tuple)) else v) for k, v in state["fcfg"].items() if k in features.DEFAULT_CFG}
-    block = (f"# BEGIN AUTO (written by src/improve.py from the validation-only search)\n"
+    block = (f"# BEGIN AUTO\n"
              f"CROP = {state['crop']!r}\n"
-             f"MAX_TRAIN_PER_CLASS = {state['per_class']!r}    # None = all\n"
+             f"MAX_TRAIN_PER_CLASS = {state['per_class']!r}\n"
              f"FEATURE_CFG = {fcfg!r}\n"
-             f"SVM_PARAMS = dict(kernel=\"rbf\", C={p['C']!r}, gamma_mult={p['gamma_mult']!r}, random_state=SEED)   # gamma = gamma_mult / (n_features * var)\n"
+             f"SVM_PARAMS = dict(kernel=\"rbf\", C={p['C']!r}, gamma_mult={p['gamma_mult']!r}, random_state=SEED)\n"
              f"# END AUTO")
     path = os.path.join(config.ROOT, "src", "config.py")
     s = open(path).read()

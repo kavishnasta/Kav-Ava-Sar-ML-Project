@@ -1,4 +1,3 @@
-"""Hand-made features: HOG + HSV colour histogram + Hu moments. Everything is controlled by a cfg dict."""
 import cv2
 import numpy as np
 from joblib import Parallel, delayed
@@ -10,6 +9,7 @@ DEFAULT_CFG = dict(median=True, clahe=False, size=32, hog_orient=9, hog_cells=(8
                    hsv_bins=16, hsv_grid=1, hsv_ch="hsv", hu=True)
 
 
+# Build a feature config from the defaults, the tuned settings and any overrides
 def make_cfg(**kw):
     cfg = dict(DEFAULT_CFG)
     cfg.update(config.FEATURE_CFG)
@@ -17,6 +17,7 @@ def make_cfg(**kw):
     return cfg
 
 
+# Median blur, resize and CLAHE on the lightness channel
 def _preprocess(bgr, cfg):
     if cfg["median"]:
         bgr = cv2.medianBlur(bgr, 3)
@@ -29,11 +30,13 @@ def _preprocess(bgr, cfg):
     return bgr
 
 
+# Histogram of oriented gradients for each cell size in the config
 def _hog(gray, cfg):
     return np.concatenate([hog(gray, orientations=cfg["hog_orient"], pixels_per_cell=(c, c),
                                cells_per_block=(2, 2), block_norm="L2-Hys") for c in cfg["hog_cells"]])
 
 
+# Colour histograms of hue, saturation and value
 def _hsv(bgr, cfg):
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     ranges = {"h": (0, 0, 180), "s": (1, 0, 256), "v": (2, 0, 256)}
@@ -50,11 +53,13 @@ def _hsv(bgr, cfg):
     return np.concatenate(parts)
 
 
+# Seven Hu shape moments on a log scale
 def _hu(gray):
     hu = cv2.HuMoments(cv2.moments(gray)).ravel()
     return -np.sign(hu) * np.log10(np.abs(hu) + 1e-30)
 
 
+# Return the HOG, HSV and Hu features of one image as separate groups
 def extract_groups(bgr, cfg):
     bgr = _preprocess(bgr, cfg)
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
@@ -64,12 +69,13 @@ def extract_groups(bgr, cfg):
     return out
 
 
+# Return all features of one image as a single vector
 def extract(bgr, cfg):
     return np.concatenate(list(extract_groups(bgr, cfg).values())).astype(np.float32)
 
 
+# Column range of each feature group inside the feature matrix
 def group_slices(cfg):
-    """{'HOG': slice, 'HSV': slice, 'Hu': slice} column ranges of the feature matrix."""
     sizes = {k: len(v) for k, v in extract_groups(np.zeros((32, 32, 3), np.uint8), cfg).items()}
     out, start = {}, 0
     for k, n in sizes.items():
@@ -78,11 +84,13 @@ def group_slices(cfg):
     return out
 
 
+# Extract features for a chunk of images inside one worker
 def _chunk(images, cfg):
     cv2.setNumThreads(0)
     return np.stack([extract(im, cfg) for im in images])
 
 
+# Extract features for many images, using several processes when there are enough images
 def extract_batch(images, cfg=None, n_jobs=None, desc=None):
     cfg = cfg or make_cfg()
     n_jobs = n_jobs or config.N_JOBS
